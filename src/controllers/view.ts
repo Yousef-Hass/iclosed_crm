@@ -10,6 +10,24 @@ interface AuthRequest extends Request {
   };
 }
 
+export const getViews = async (req: Request, res: Response) => {
+  try {
+    const { pipelineId } = req.params;
+
+    const views = await prisma.view.findMany({
+      where: { pipelineId },
+      include: {
+        stages: true
+      }
+    });
+
+    res.json(views);
+  } catch (error) {
+    console.error('Get views error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
 export const createView = async (req: Request, res: Response) => {
   try {
     const errors = validationResult(req);

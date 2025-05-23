@@ -1,0 +1,112 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Pipeline {
+  id            String    @id @default(cuid())
+  name          String
+  description   String?
+  organizationId String
+  views         View[]
+  statuses      Status[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model View {
+  id          String    @id @default(cuid())
+  name        String
+  type        ViewType
+  config      Json
+  pipeline    Pipeline  @relation(fields: [pipelineId], references: [id])
+  pipelineId  String
+  stages      Stage[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Stage {
+  id        String    @id @default(cuid())
+  name      String
+  criteria  Json
+  order     Int
+  view      View      @relation(fields: [viewId], references: [id])
+  viewId    String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Contact {
+  id              String    @id @default(cuid())
+  basicInfo       Json
+  status          Status    @relation(fields: [statusId], references: [id])
+  statusId        String
+  customFields    CustomFieldValue[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model CustomField {
+  id          String    @id @default(cuid())
+  name        String
+  type        String
+  fieldType   FieldType
+  config      Json
+  values      CustomFieldValue[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model CustomFieldValue {
+  id            String      @id @default(cuid())
+  field         CustomField @relation(fields: [fieldId], references: [id])
+  fieldId       String
+  contact       Contact     @relation(fields: [contactId], references: [id])
+  contactId     String
+  value         Json
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Status {
+  id          String    @id @default(cuid())
+  name        String
+  color       String
+  order       Int
+  pipeline    Pipeline  @relation(fields: [pipelineId], references: [id])
+  pipelineId  String
+  contacts    Contact[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model User {
+  id        String    @id @default(cuid())
+  name      String
+  email     String    @unique
+  password  String
+  role      UserRole
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+enum ViewType {
+  KANBAN
+  TABLE
+}
+
+enum FieldType {
+  CONTACT
+  EVENT
+  PIPELINE
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}

@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { validationResult } from 'express-validator';
 import prisma from '../config/database';
+import { Prisma } from '@prisma/client';
+import { emitContactCreate, emitContactUpdate, emitContactDelete, emitContactMove } from '../events';
 
 interface AuthRequest extends Request {
   user?: {
@@ -12,16 +14,17 @@ interface AuthRequest extends Request {
 
 export const getContacts = async (req: Request, res: Response) => {
   try {
-    const contacts = await prisma.contact.findMany({
-      include: {
-        status: true,
-        customFields: {
+    const include = {
+        status: {
           include: {
-            field: true
+            pipeline: true
           }
         }
-      }
-    });
+      } as const;
+
+      const contacts = await prisma.contact.findMany({
+        include
+      });
 
     res.json(contacts);
   } catch (error) {
@@ -31,6 +34,7 @@ export const getContacts = async (req: Request, res: Response) => {
 };
 
 export const createContact = async (req: Request, res: Response) => {
+  const io = req.app.get('io');
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -39,22 +43,27 @@ export const createContact = async (req: Request, res: Response) => {
 
     const { basicInfo, statusId, fields } = req.body;
 
-    const contact = await prisma.contact.create({
-      data: {
+    const contactData: Prisma.ContactCreateInput = {
         basicInfo,
-        statusId,
-        customFields: {
-          create: fields?.map((field: any) => ({
-            fieldId: field.fieldId,
-            value: field.value
-          }))
+        status: {
+          connect: { id: statusId }
         }
-      },
+      };
+
+      if (fields?.length) {
+        const customFieldValues = fields.map((field: any) => ({
+          field: { connect: { id: field.fieldId } },
+          value: field.value
+        }));
+        (contactData as any).customFieldValues = { create: customFieldValues };
+      }
+
+      const contact = await prisma.contact.create({
+        data: contactData,
       include: {
-        status: true,
-        customFields: {
+        status: {
           include: {
-            field: true
+            pipeline: true
           }
         }
       }
@@ -74,10 +83,9 @@ export const getContact = async (req: Request, res: Response) => {
     const contact = await prisma.contact.findUnique({
       where: { id },
       include: {
-        status: true,
-        customFields: {
+        status: {
           include: {
-            field: true
+            pipeline: true
           }
         }
       }
@@ -95,6 +103,7 @@ export const getContact = async (req: Request, res: Response) => {
 };
 
 export const updateContact = async (req: Request, res: Response) => {
+  const io = req.app.get('io');
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -104,24 +113,31 @@ export const updateContact = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { basicInfo, statusId, fields } = req.body;
 
-    const contact = await prisma.contact.update({
-      where: { id },
-      data: {
+    const contactData: Prisma.ContactUpdateInput = {
         basicInfo,
-        statusId,
-        customFields: {
-          deleteMany: {},
-          create: fields?.map((field: any) => ({
-            fieldId: field.fieldId,
-            value: field.value
-          }))
+        status: {
+          connect: { id: statusId }
         }
-      },
+      };
+
+      if (fields?.length) {
+        const customFieldValues = fields.map((field: any) => ({
+          field: { connect: { id: field.fieldId } },
+          value: field.value
+        }));
+        (contactData as any).customFieldValues = {
+          deleteMany: {},
+          create: customFieldValues
+        };
+      }
+
+      const contact = await prisma.contact.update({
+        where: { id },
+        data: contactData,
       include: {
-        status: true,
-        customFields: {
+        status: {
           include: {
-            field: true
+            pipeline: true
           }
         }
       }
@@ -135,12 +151,26 @@ export const updateContact = async (req: Request, res: Response) => {
 };
 
 export const deleteContact = async (req: Request, res: Response) => {
+  const io = req.app.get('io');
   try {
     const { id } = req.params;
 
-    await prisma.contact.delete({
+    const existingContact = await prisma.contact.findUnique({
+      where: { id },
+      include: { status: { include: { pipeline: true } } }
+    });
+
+    if (!existingContact) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    const contact = await prisma.contact.delete({
       where: { id }
     });
+
+    if (existingContact.status?.pipeline) {
+      emitContactDelete(io, existingContact.status.pipeline.id, id);
+    }
 
     res.json({ message: 'Contact deleted successfully' });
   } catch (error) {
@@ -150,6 +180,7 @@ export const deleteContact = async (req: Request, res: Response) => {
 };
 
 export const updateContactStatus = async (req: Request, res: Response) => {
+  const io = req.app.get('io');
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -159,14 +190,12 @@ export const updateContactStatus = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { statusId } = req.body;
 
-    const contact = await prisma.contact.update({
+    const contact = await prisma.contact.findUnique({
       where: { id },
-      data: { statusId },
       include: {
-        status: true,
-        customFields: {
+        status: {
           include: {
-            field: true
+            pipeline: true
           }
         }
       }

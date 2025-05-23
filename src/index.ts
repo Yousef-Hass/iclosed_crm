@@ -2,22 +2,17 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { createServer } from 'http';
-import { Server } from 'socket.io';
 import dotenv from 'dotenv';
 import routes from './routes';
 import prisma from './config/database';
+import { configureSocket } from './config/socket';
 
 
 dotenv.config();
 const app = express();
 const httpServer = createServer(app);
 
-const io = new Server(httpServer, {
-  cors: {
-    origin: process.env.CORS_ORIGIN || '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  },
-});
+
 
 app.use(cors());
 app.use(helmet());
@@ -31,10 +26,21 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 });
 
 const PORT = process.env.PORT || 3000;
-httpServer.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+const startServer = async () => {
+  try {
+    await prisma.$connect();
+    console.log('Database connected successfully');
 
-  prisma.$connect()
-    .then(() => console.log('Database connected successfully'))
-    .catch((err: Error) => console.error('Database connection error:', err));
-});
+    const io = await configureSocket(httpServer);
+    app.set('io', io);
+
+    httpServer.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+  } catch (err) {
+    console.error('Server startup error:', err);
+    process.exit(1);
+  }
+};
+
+startServer();

@@ -46,7 +46,7 @@ model Contact {
   basicInfo       Json
   status          Status    @relation(fields: [statusId], references: [id])
   statusId        String
-  customFields    CustomFieldValue[]
+  customFieldValues CustomFieldValue[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 }

@@ -74,6 +74,36 @@ JWT_SECRET=your-secret-key
 
 API documentation is available at `/api-docs` when running the application.
 
+## WebSocket Events
+
+The application uses Socket.IO for real-time updates. Here are the available events:
+
+### Connection Events
+- `connect`: Client connects to the server
+- `disconnect`: Client disconnects from the server
+- `join:pipeline`: Join a pipeline room
+- `leave:pipeline`: Leave a pipeline room
+
+### Pipeline Events
+- `pipeline:update`: Pipeline data is updated
+- `pipeline:delete`: Pipeline is deleted
+
+### Contact Events
+- `contact:create`: New contact is created
+- `contact:update`: Contact data is updated
+- `contact:delete`: Contact is deleted
+- `contact:move`: Contact status is changed
+
+### View Events
+- `view:update`: View data is updated
+- `stage:reorder`: Stage order is changed
+
+### Status Events
+- `status:create`: New status is created
+- `status:update`: Status data is updated
+- `status:delete`: Status is deleted
+- `status:reorder`: Status order is changed
+
 ## Testing
 
 ```bash
